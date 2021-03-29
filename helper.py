@@ -3,10 +3,7 @@ import datetime
 import re
 
 # 1 S'assurer qu'on a les bonnes données pour la connexion
-def connexionVerification(reqData):
-    adresseCourriel = reqData.get("adresseCourriel")
-    motDePasse = reqData.get("motDePasse")
-
+def connexionVerification(adresseCourriel, motDePasse):
     # 1.1 Verifier qu'on trouve l'adresse et le mot de pase
     if adresseCourriel == None or motDePasse == None:
         return False
@@ -22,13 +19,7 @@ def connexionVerification(reqData):
     return True
 
 # 2 S'assurer qu'on valide les données pour l'inscription
-def inscriptionVerification(reqData):
-    adresseCourriel = reqData.get("adresseCourriel")
-    motDePasse = reqData.get("motDePasse")
-    anneNaissance = reqData.get("anneNaissance")
-    nomUtilisateur = reqData.get("nomUtilisateur")
-    prenomUtilisateur = reqData.get("prenomUtilisateur")
-
+def inscriptionVerification(adresseCourriel, motDePasse, anneNaissance, nomUtilisateur, prenomUtilisateur):
     # 1.1 Verifier que tout les paramètres sont présents dans la requête
     if adresseCourriel == None or motDePasse == None or anneNaissance == None or nomUtilisateur == None or prenomUtilisateur == None:
         return False
