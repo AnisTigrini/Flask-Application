@@ -1,5 +1,4 @@
 #1) Import nécessaires pour faire rouler l'application
-from dns.message import make_response
 import flask
 import mysql.connector
 import jwt as myjwt
@@ -116,6 +115,34 @@ def maj_profil():
         except:
             return jsonify({"reponse":"echec"})
 
+
+#3) Route qui remet le profil au front-end
+@app.route('/api/profil', methods=['POST'])
+def get_profil():
+    reqJson = myrequest.get_json()
+
+    if not reqJson.get("token"):
+        return jsonify({"reponse":"echec"})
+    
+    else:
+        try:
+            webtoken = myjwt.decode(reqJson.get("token"), key=app.config["SECRET_KEY"], algorithms=["HS256"])
+            mycursor.execute("SELECT prenom, nom, imageProfil FROM utilisateurs WHERE addresseCourriel='{}'".format(webtoken['user']))
+            myresult = mycursor.fetchone()
+
+            return jsonify({"reponse":"success", 'prenom':myresult['prenom'], 
+            'nom':myresult['nom'], 'imageProfil':myresult['imageProfil']})
+
+        
+        except:
+            return jsonify({"reponse":"echec"})
+
+    
+@app.route('/api/marqueauto', methods=['GET'])
+def get_infoauto():
+    mycursor.execute("SELECT Marque FROM mmauto GROUP BY Marque")
+    myresult = mycursor.fetchall()
+    return jsonify({'response':myresult})
 
 app.run()
 connection.close()
