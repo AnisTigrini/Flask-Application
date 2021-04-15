@@ -15,7 +15,7 @@ from helper import *
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
 app.config["SECRET_KEY"] = "jikikiautoestlemeilleursitedautoaumondeselontoutlemonde"
-cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
+cors = CORS(app, resources={r"*": {"origins": "http://localhost:4200"}})
 bcrypt = Bcrypt(app)
 
 connection = mysql.connector.connect(host='127.0.0.1',
@@ -42,7 +42,9 @@ def getter():
         return jsonify({"reponse":"echec"})
     # 2.2) Si les donnés sont bonnes
     else:
-        mycursor.execute("SELECT * FROM utilisateurs WHERE addresseCourriel='{}'".format(adresseCourriel))
+        sql = "SELECT * FROM utilisateurs WHERE addresseCourriel=%s"
+        val = (adresseCourriel,)
+        mycursor.execute(sql, val)
         myresult = mycursor.fetchone()
 
         if myresult == None:
@@ -69,7 +71,9 @@ def connexion():
         return jsonify({"reponse":"echec"})
     
     else:
-        mycursor.execute("SELECT prenom, nom, imageProfil, motDePasse FROM utilisateurs WHERE addresseCourriel='{}'".format(adresseCourriel))
+        sql = "SELECT prenom, nom, imageProfil, motDePasse FROM utilisateurs WHERE addresseCourriel=%s"
+        val = (adresseCourriel,)
+        mycursor.execute(sql, val)
         myresult = mycursor.fetchone()
 
         if myresult == None:
@@ -100,13 +104,14 @@ def maj_profil():
     else:
         try:
             webtoken = myjwt.decode(reqJson.get("token"), key=app.config["SECRET_KEY"], algorithms=["HS256"])
-            mycursor.execute('''UPDATE utilisateurs SET prenom='{}', nom='{}', imageProfil='{}' 
-            WHERE addresseCourriel='{}' '''.format(reqJson['prenom'], reqJson['nom'], reqJson['imageProfil'] ,webtoken['user']))
+            sql = "UPDATE utilisateurs SET prenom=%s, nom=%s, imageProfil=%s WHERE addresseCourriel=%s"
+            val = (reqJson['prenom'], reqJson['nom'], reqJson['imageProfil'] ,webtoken['user'])
+            mycursor.execute(sql, val)
             myresult = mycursor.fetchone()
             connection.commit()
             print(mycursor.rowcount, "record inserted.")
 
-            mycursor.execute("SELECT prenom, nom, imageProfil FROM utilisateurs WHERE addresseCourriel='{}'".format(webtoken['user']))
+            mycursor.execute("SELECT prenom, nom, imageProfil FROM utilisateurs WHERE addresseCourriel=%s", (webtoken['user'],))
             myresult = mycursor.fetchone()
             
             return jsonify({"reponse":"success", 'prenom':myresult['prenom'], 
@@ -127,7 +132,7 @@ def get_profil():
     else:
         try:
             webtoken = myjwt.decode(reqJson.get("token"), key=app.config["SECRET_KEY"], algorithms=["HS256"])
-            mycursor.execute("SELECT prenom, nom, imageProfil FROM utilisateurs WHERE addresseCourriel='{}'".format(webtoken['user']))
+            mycursor.execute("SELECT prenom, nom, imageProfil FROM utilisateurs WHERE addresseCourriel=%s", (webtoken['user'],))
             myresult = mycursor.fetchone()
 
             return jsonify({"reponse":"success", 'prenom':myresult['prenom'], 
@@ -140,9 +145,180 @@ def get_profil():
     
 @app.route('/api/marqueauto', methods=['GET'])
 def get_infoauto():
-    mycursor.execute("SELECT Marque FROM mmauto GROUP BY Marque")
+    #1 Envoyer toute l'information des marques et modèles d'auto
+    mycursor.execute("SELECT * FROM mmauto")
     myresult = mycursor.fetchall()
     return jsonify({'response':myresult})
+
+
+@app.route('/api/poster_auto', methods=['POST'])
+def poster_auto():
+    #1 Extraire toutes les données
+    reqJson = myrequest.get_json()
+    reqAutoInfo = reqJson.get('auto')
+    marqueModeleAutoChamp = reqAutoInfo.get("marquePost")
+    marqueModeleAuto = marqueModeleAutoChamp.split("+")
+
+    titrePost = reqAutoInfo.get("titrePost")
+    prixPost = reqAutoInfo.get("prixPost")
+    kiloAuto = reqAutoInfo.get("kilometragePost")
+    marqueAuto = marqueModeleAuto[0]
+    modeleAuto = marqueModeleAuto[1]
+    versionAuto = reqAutoInfo.get("versionPost")
+    motriciteAuto = reqAutoInfo.get("motricitePost")
+    anneAuto = reqAutoInfo.get("annePost")
+    etatAuto = reqAutoInfo.get("etat")
+    carrosserieAuto = reqAutoInfo.get("carrosseriePost")
+    carburantAuto = reqAutoInfo.get("carburantPost")
+    transmissionAuto = reqAutoInfo.get("transmissionPost")
+    descriptionAuto = reqAutoInfo.get("descriptionPost")
+    equipementUn = reqAutoInfo.get("equipement_un")
+    equipementDeux = reqAutoInfo.get("equipement_deux")
+    equipementTrois = reqAutoInfo.get("equipement_trois")
+    equipementQuatre = reqAutoInfo.get("equipement_quatre")
+    imageUn = reqAutoInfo.get("image_un")
+    imageDeux = reqAutoInfo.get("image_deux")
+    imageTrois = reqAutoInfo.get("image_trois")
+
+    # 2 Verifier que l'utilisateur est connnecté
+    if not reqJson.get("token"):
+        return jsonify({"reponse":"echec"})
+    
+    else:
+        try:
+            webtoken = myjwt.decode(reqJson.get("token"), key=app.config["SECRET_KEY"], algorithms=["HS256"])
+            if posterAutoVerification(marqueModeleAutoChamp ,titrePost, prixPost, kiloAuto, versionAuto, motriciteAuto ,anneAuto, etatAuto, carrosserieAuto, carburantAuto, transmissionAuto, descriptionAuto, equipementUn, equipementDeux, equipementTrois, equipementQuatre, imageUn, imageDeux, imageTrois) == False:
+                print('juns')
+                return jsonify({"reponse":"echec"})
+            
+            else:
+                # 3) Verifier que la marque et modèle d'auto sont valide
+                mycursor.execute("SELECT * FROM mmauto WHERE Marque=%s AND Modele=%s", (marqueAuto, modeleAuto))
+                myresult = mycursor.fetchone()
+                print('hello')
+                if myresult == None:
+                    return jsonify({"reponse":"echec"})
+                else:
+                    idpost = uniqueID()
+                    print('hey')
+                    mycursor.execute("CALL entrerPost('{}', '{}', '{}', {}, '{}', '{}', {}, '{}', '{}', '{}', '{}', '{}', '{}', '{}', {}, '{}', '{}', '{}', '{}', '{}', '{}', '{}')".format(idpost, webtoken['user'], titrePost, prixPost, descriptionAuto, etatAuto, kiloAuto, '-', transmissionAuto, '-', carburantAuto, carrosserieAuto, marqueAuto, modeleAuto, anneAuto, imageUn, imageDeux, imageTrois, equipementUn, equipementDeux, equipementTrois, equipementQuatre))
+                    return jsonify({'response':"success"})
+        
+        except Error as e:
+            print(e)
+            return jsonify({"reponse":"echec"})
+
+
+@app.route('/api/mes_auto', methods=['POST'])
+def mes_auto():
+    #1 Extraire toutes les données
+    reqJson = myrequest.get_json()
+
+    try:
+        webtoken = myjwt.decode(reqJson.get("token"), key=app.config["SECRET_KEY"], algorithms=["HS256"])
+        print('ici 1')
+        mycursor.execute("SELECT * FROM postauto WHERE addresseCourriel=%s", (webtoken["user"],))
+        print('ici 2')
+        myresult = mycursor.fetchall()
+        return jsonify({"reponse":"success", "autos":myresult})
+
+    except Error as e:
+        print(e)
+        return jsonify({"reponse":"echec"})
+
+@app.route('/api/supprimer_autos', methods=['POST'])
+def supprimer_autos():
+    #1 Extraire toutes les données
+    reqJson = myrequest.get_json()
+    idpost = reqJson.get("idpost")
+    print(reqJson)
+
+    if idpost == None:
+        return jsonify({"reponse":"echec"})
+    
+    else:
+        try:
+            # 2 verifier que le token et valide et renvoyer la réponse
+            webtoken = myjwt.decode(reqJson.get("token"), key=app.config["SECRET_KEY"], algorithms=["HS256"])
+            val = (idpost, webtoken['user'])
+            print('ici')
+            mycursor.execute("DELETE FROM postauto WHERE idpost=%s AND addresseCourriel=%s", val)
+            connection.commit()
+            print(mycursor.rowcount, "record deleted.")
+            return jsonify({"reponse":"success"})
+        
+        except:
+            return jsonify({"reponse":"echec"})
+
+
+@app.route('/api/mes_favoris', methods=['POST'])
+def mes_favoris():
+    #1 Extraire toutes les données
+    reqJson = myrequest.get_json()
+
+    try:
+        # 2 verifier que le token et valide et renvoyer la réponse
+        webtoken = myjwt.decode(reqJson.get("token"), key=app.config["SECRET_KEY"], algorithms=["HS256"])
+        val = (webtoken['user'],)
+        mycursor.execute("SELECT p.idpost, p.titreAuto, p.marqueAuto, p.modeleAuto, i.urlimage FROM postauto AS p, imageauto AS i WHERE p.addresseCourriel=%s AND  p.idpost=i.idpost", val)
+        myresult = mycursor.fetchall()
+        if myresult == None:
+            return jsonify({"reponse":"echec"})
+        
+        else:
+            return jsonify({"reponse":"success", "favoris":myresult})
+
+    except:
+        return jsonify({"reponse":"echec"})
+
+
+@app.route('/api/poster_favoris', methods=['POST'])
+def poster_favoris():
+    #1 Extraire toutes les données
+    reqJson = myrequest.get_json()
+    idpost = reqJson.get("idpost")
+
+    if idpost == None:
+        return jsonify({"reponse":"echec"})
+
+    try:
+        # 2 verifier que le token et valide et renvoyer la réponse
+        webtoken = myjwt.decode(reqJson.get("token"), key=app.config["SECRET_KEY"], algorithms=["HS256"])
+        val = (idpost, webtoken['user'])
+        mycursor.execute("SELECT idpost FROM postfavoris WHERE idpost=%s AND addresseCourriel=%s", val)
+        myresult = mycursor.fetchone()
+        if myresult == None:
+            mycursor.execute("INSERT INTO postfavoris VALUES (%s, %s)", val)
+            connection.commit()
+            return jsonify({"reponse":"success"})
+        
+        else:
+            return jsonify({"reponse":"echec"})
+
+    except:
+        return jsonify({"reponse":"echec"})
+
+@app.route('/api/supprimer_favoris', methods=['POST'])
+def supprimer_favoris():
+    #1 Extraire toutes les données
+    reqJson = myrequest.get_json()
+    idpost = reqJson.get("idpost")
+
+    if idpost == None:
+        return jsonify({"reponse":"echec"})
+    
+    else:
+        try:
+            # 2 verifier que le token et valide et renvoyer la réponse
+            webtoken = myjwt.decode(reqJson.get("token"), key=app.config["SECRET_KEY"], algorithms=["HS256"])
+            val = (idpost, webtoken['user'])
+            mycursor.execute("DELETE FROM postfavoris WHERE idpost=%s AND addresseCourriel=%s", val)
+            connection.commit()
+            print(mycursor.rowcount, "record deleted.")
+            return jsonify({"reponse":"success"})
+        
+        except:
+            return jsonify({"reponse":"echec"})
 
 app.run()
 connection.close()
