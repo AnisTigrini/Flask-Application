@@ -217,7 +217,7 @@ def mes_auto():
     try:
         webtoken = myjwt.decode(reqJson.get("token"), key=app.config["SECRET_KEY"], algorithms=["HS256"])
         print('ici 1')
-        mycursor.execute("SELECT * FROM postauto WHERE addresseCourriel=%s", (webtoken["user"],))
+        mycursor.execute("SELECT * FROM postauto WHERE addresseCourriel=%s AND archive=0", (webtoken["user"],))
         print('ici 2')
         myresult = mycursor.fetchall()
         return jsonify({"reponse":"success", "autos":myresult})
@@ -242,7 +242,7 @@ def supprimer_autos():
             webtoken = myjwt.decode(reqJson.get("token"), key=app.config["SECRET_KEY"], algorithms=["HS256"])
             val = (idpost, webtoken['user'])
             print('ici')
-            mycursor.execute("DELETE FROM postauto WHERE idpost=%s AND addresseCourriel=%s", val)
+            mycursor.execute("UPDATE postauto SET archive=0 WHERE idpost=%s AND addresseCourriel=%s", val)
             connection.commit()
             print(mycursor.rowcount, "record deleted.")
             return jsonify({"reponse":"success"})
@@ -260,8 +260,9 @@ def mes_favoris():
         # 2 verifier que le token et valide et renvoyer la réponse
         webtoken = myjwt.decode(reqJson.get("token"), key=app.config["SECRET_KEY"], algorithms=["HS256"])
         val = (webtoken['user'],)
-        mycursor.execute("SELECT p.idpost, p.titreAuto, p.marqueAuto, p.modeleAuto, i.urlimage FROM postauto AS p, imageauto AS i WHERE p.addresseCourriel=%s AND  p.idpost=i.idpost", val)
+        mycursor.execute("SELECT p.* from postauto as p ,postfavoris as f where p.idpost = f.idpost AND f.addresseCourriel=%s", val)
         myresult = mycursor.fetchall()
+        print("result", myresult)
         if myresult == None:
             return jsonify({"reponse":"echec"})
         
@@ -319,6 +320,33 @@ def supprimer_favoris():
         
         except:
             return jsonify({"reponse":"echec"})
+
+@app.route('/api/get_marque_auto', methods=['POST'])
+def get_marque_auto():
+    #1 Extraire toutes les données
+    reqJson = myrequest.get_json()
+    mycursor.execute("SELECT p.*, i.urlimage FROM postauto AS p, imageauto as i WHERE marqueAuto=%s AND p.idpost=i.idpost AND archive=0 GROUP BY p.idpost", (reqJson.get("marqueAuto"),))
+    myresult = mycursor.fetchall()
+    return jsonify({"reponse":"success", "resultat":myresult})
+
+@app.route('/api/get_carrosserie_auto', methods=['POST'])
+def get_carrosserie_auto():
+    #1 Extraire toutes les données
+    reqJson = myrequest.get_json()
+    mycursor.execute("SELECT p.*, i.urlimage FROM postauto AS p, imageauto as i WHERE typeCarrosserie=%s AND p.idpost=i.idpost AND archive=0", (reqJson.get("typeCarrosserie"),))
+    myresult = mycursor.fetchall()
+    return jsonify({"reponse":"success", "resultat":myresult})
+
+@app.route('/api/photo_equip', methods=['POST'])
+def photo_equip():
+    #1 Extraire toutes les données
+    reqJson = myrequest.get_json()
+    mycursor.execute("SELECT * from imageauto WHERE idpost=%s",(reqJson.get("id"),))
+    myresult = mycursor.fetchall()
+
+    mycursor.execute("SELECT * from equipements WHERE idpost=%s",(reqJson.get("id"),))
+    myres = mycursor.fetchall()
+    return jsonify({"reponse":"success", "eq":myres, "photos":myresult})
 
 app.run()
 connection.close()
